@@ -122,7 +122,7 @@ class UsermodTemperature : public Usermod {
           if (!oneWire->reset()) {
             sensorFound = false;   // resetting 1-Wire bus yielded an error
           } else {
-            while ((sensorFound=findSensor()) && retries--) {
+            while (!(sensorFound=findSensor()) && retries--) {
               delay(25); // try to find sensor
             }
           }
