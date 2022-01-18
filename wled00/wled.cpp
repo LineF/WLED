@@ -193,6 +193,8 @@ void WLED::loop()
   if (lastMqttReconnectAttempt > millis()) {
     rolloverMillis++;
     lastMqttReconnectAttempt = 0;
+    ntpLastSyncTime = 0;
+    strip.restartRuntime();
   }
   if (millis() - lastMqttReconnectAttempt > 30000) {
     lastMqttReconnectAttempt = millis();
@@ -682,13 +684,15 @@ void WLED::handleConnection()
 
   if (now < 2000 && (!WLED_WIFI_CONFIGURED || apBehavior == AP_BEHAVIOR_ALWAYS))
     return;
-  if (lastReconnectAttempt == 0)
+  if (lastReconnectAttempt == 0) {
     initConnection();
+    return;
+  }
 
   // reconnect WiFi to clear stale allocations if heap gets too low
   if (now - heapTime > 5000) {
     uint32_t heap = ESP.getFreeHeap();
-    if (heap < JSON_BUFFER_SIZE+512 && lastHeap < JSON_BUFFER_SIZE+512) {
+    if (heap < MIN_HEAP_SIZE && lastHeap < MIN_HEAP_SIZE) {
       DEBUG_PRINT(F("Heap too low! "));
       DEBUG_PRINTLN(heap);
       forceReconnect = true;
