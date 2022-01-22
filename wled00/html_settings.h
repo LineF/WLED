@@ -20,7 +20,7 @@ body{text-align:center;background:#222;height:100px;margin:0}html{--h:10.2vh}but
 </button></form><form action="/settings/sync"><button type="submit">
 Sync Interfaces</button></form><form action="/settings/time"><button 
 type="submit">Time & Macros</button></form><form action="/settings/um"><button 
-type="submit">Usermods</button></form><form action="/settings/sec"><button 
+type="submit">Usermods</button></form>%DMXMENU%<form action="/settings/sec"><button 
 type="submit">Security & Updates</button></form></body></html>)=====";
 
 
@@ -442,7 +442,7 @@ href="https://github.com/Aircoookie/WLED/" target="_blank">WLED</a>
 href="https://github.com/Aircoookie/WLED/wiki/Contributors-and-credits" 
 target="_blank">Contributors, dependencies and special thanks</a><br>
 A huge thank you to everyone who helped me create WLED!<br><br>
-(c) 2016-2021 Christian Schwinne<br><i>Licensed under the <a 
+(c) 2016-2022 Christian Schwinne<br><i>Licensed under the <a 
 href="https://github.com/Aircoookie/WLED/blob/master/LICENSE" target="_blank">
 MIT license</a></i><br><br>Server message: <span class="sip">Response error!
 </span><hr><div id="toast"></div><button type="button" onclick="B()">Back
