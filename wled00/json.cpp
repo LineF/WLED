@@ -8,7 +8,7 @@
 
 bool getVal(JsonVariant elem, byte* val, byte vmin=0, byte vmax=255) {
   if (elem.is<int>()) {
-		if (elem < 0) return false; //ignore e.g. {"ps":-1}
+    if (elem < 0) return false; //ignore e.g. {"ps":-1}
     *val = elem;
     return true;
   } else if (elem.is<const char*>()) {
@@ -37,7 +37,7 @@ void deserializeSegment(JsonObject elem, byte it, byte presetId)
     stop = (len > 0) ? start + len : seg.stop;
   }
 
-  // multiply segment 0 (?) if requested untill all LEDs are used
+  //repeat, multiplies segment until all LEDs are used, or max segments reached
   bool repeat = elem["rpt"] | false;
   if (repeat && stop>0) {
     elem.remove("id");  // remove for recursive call
@@ -82,7 +82,7 @@ void deserializeSegment(JsonObject elem, byte it, byte presetId)
 
   uint16_t grp = elem["grp"] | seg.grouping;
   uint16_t spc = elem[F("spc")] | seg.spacing;
-	uint16_t of = seg.offset;
+  uint16_t of = seg.offset;
   if (!(elem[F("spc")].isNull() && elem["grp"].isNull())) effectChanged = true; //send UDP
 
   uint16_t len = 1;
@@ -95,7 +95,7 @@ void deserializeSegment(JsonObject elem, byte it, byte presetId)
     of = offsetAbs;
   }
   if (stop > start && of > len -1) of = len -1;
-	strip.setSegment(id, start, stop, grp, spc, of);
+  strip.setSegment(id, start, stop, grp, spc, of);
 
   byte segbri = 0;
   if (getVal(elem["bri"], &segbri)) {
@@ -110,9 +110,9 @@ void deserializeSegment(JsonObject elem, byte it, byte presetId)
   if (elem["frz"].is<const char*>() && elem["frz"].as<const char*>()[0] == 't') frz = !seg.getOption(SEG_OPTION_FREEZE);
   seg.setOption(SEG_OPTION_FREEZE, frz, id);
 
-	uint8_t cctPrev = seg.cct;
+  uint8_t cctPrev = seg.cct;
   seg.setCCT(elem["cct"] | seg.cct, id);
-	if (seg.cct != cctPrev && id == strip.getMainSegmentId()) effectChanged = true; //send UDP
+  if (seg.cct != cctPrev && id == strip.getMainSegmentId()) effectChanged = true; //send UDP
 
   JsonArray colarr = elem["col"];
   if (!colarr.isNull())
@@ -398,12 +398,12 @@ bool deserializeState(JsonObject root, byte callMode, byte presetId)
 
 void serializeSegment(JsonObject& root, WS2812FX::Segment& seg, byte id, bool forPreset, bool segmentBounds)
 {
-	root["id"] = id;
+  root["id"] = id;
   if (segmentBounds) {
     root["start"] = seg.start;
     root["stop"] = seg.stop;
   }
-	if (!forPreset) root[F("len")] = seg.stop - seg.start;
+  if (!forPreset) root[F("len")] = seg.stop - seg.start;
   root["grp"] = seg.grouping;
   root[F("spc")] = seg.spacing;
   root[F("of")] = seg.offset;
@@ -438,12 +438,12 @@ void serializeSegment(JsonObject& root, WS2812FX::Segment& seg, byte id, bool fo
   strcat_P(colstr, PSTR("]"));
   root["col"] = serialized(colstr);
 
-	root["fx"]     = seg.mode;
-	root[F("sx")]  = seg.speed;
-	root[F("ix")]  = seg.intensity;
-	root["pal"]    = seg.palette;
-	root[F("sel")] = seg.isSelected();
-	root["rev"]    = seg.getOption(SEG_OPTION_REVERSED);
+  root["fx"]     = seg.mode;
+  root[F("sx")]  = seg.speed;
+  root[F("ix")]  = seg.intensity;
+  root["pal"]    = seg.palette;
+  root[F("sel")] = seg.isSelected();
+  root["rev"]    = seg.getOption(SEG_OPTION_REVERSED);
   root[F("mi")]  = seg.getOption(SEG_OPTION_MIRROR);
 }
 
@@ -527,12 +527,12 @@ void serializeInfo(JsonObject root)
   leds[F("rgbw")] = strip.isRgbw;
   leds[F("wv")] = false;
   leds["cct"] = correctWB || strip.hasCCTBus();
-	switch (Bus::getAutoWhiteMode()) {
-		case RGBW_MODE_MANUAL_ONLY:
-		case RGBW_MODE_DUAL:
-			if (strip.isRgbw) leds[F("wv")] = true;
-			break;
-	}
+  switch (Bus::getAutoWhiteMode()) {
+    case RGBW_MODE_MANUAL_ONLY:
+    case RGBW_MODE_DUAL:
+      if (strip.isRgbw) leds[F("wv")] = true;
+      break;
+  }
 
   leds[F("pwr")] = strip.currentMilliamps;
   leds["fps"] = strip.getFps();
@@ -725,9 +725,6 @@ void serializePalettes(JsonObject root, AsyncWebServerRequest* request)
 
   for (int i = start; i < end; i++) {
     JsonArray curPalette = palettes.createNestedArray(String(i));
-    CRGB prim;
-    CRGB sec;
-    CRGB ter;
     switch (i) {
       case 0: //default palette
         setPaletteColors(curPalette, PartyColors_p); 
@@ -912,7 +909,11 @@ bool serveLiveLeds(AsyncWebServerRequest* request, uint32_t wsClient)
 
   for (uint16_t i= 0; i < used; i += n)
   {
-    olen += sprintf(obuf + olen, "\"%06X\",", strip.getPixelColor(i) & 0xFFFFFF);
+    uint32_t c = strip.getPixelColor(i);
+    uint8_t r = qadd8(W(c), R(c)); //add white channel to RGB channels as a simple RGBW -> RGB map
+    uint8_t g = qadd8(W(c), G(c));
+    uint8_t b = qadd8(W(c), B(c));
+    olen += sprintf(obuf + olen, "\"%06X\",", RGBW32(r,g,b,0));
   }
   olen -= 1;
   oappend((const char*)F("],\"n\":"));
