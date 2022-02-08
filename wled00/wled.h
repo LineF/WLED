@@ -8,7 +8,7 @@
  */
 
 // version code in format yymmddb (b = daily build)
-#define VERSION 2201280
+#define VERSION 2202030
 
 //uncomment this if you have a "my_config.h" file you'd like to use
 //#define WLED_USE_MY_CONFIG
@@ -225,7 +225,7 @@ WLED_GLOBAL int8_t btnPin[WLED_MAX_BUTTONS] _INIT({0});
 WLED_GLOBAL int8_t btnPin[WLED_MAX_BUTTONS] _INIT({BTNPIN});
 #endif
 #ifndef RLYPIN
-WLED_GLOBAL int8_t rlyPin _INIT(12);
+WLED_GLOBAL int8_t rlyPin _INIT(-1);
 #else
 WLED_GLOBAL int8_t rlyPin _INIT(RLYPIN);
 #endif
