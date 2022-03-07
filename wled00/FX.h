@@ -247,7 +247,7 @@ class WS2812FX {
   
   // segment parameters
   public:
-    typedef struct Segment { // 30 (32 in memory) bytes
+    typedef struct Segment { // 31 (32 in memory) bytes
       uint16_t start;
       uint16_t stop; //segment invalid if stop == 0
       uint16_t offset;
@@ -260,6 +260,7 @@ class WS2812FX {
       uint8_t  opacity;
       uint32_t colors[NUM_COLORS];
       uint8_t  cct; //0==1900K, 255==10091K
+      uint8_t  _capabilities;
       char *name;
       bool setColor(uint8_t slot, uint32_t c, uint8_t segn) { //returns true if changed
         if (slot >= NUM_COLORS || segn >= MAX_NUM_SEGMENTS) return false;
@@ -335,7 +336,8 @@ class WS2812FX {
         return vLength;
       }
       uint8_t differs(Segment& b);
-      uint8_t getLightCapabilities();
+      inline uint8_t getLightCapabilities() {return _capabilities;}
+      void refreshLightCapabilities();
     } segment;
 
   // segment runtime parameters
@@ -622,6 +624,7 @@ class WS2812FX {
       setMode(uint8_t segid, uint8_t m),
       setColor(uint8_t slot, uint8_t r, uint8_t g, uint8_t b, uint8_t w = 0),
       setColor(uint8_t slot, uint32_t c),
+      setCCT(uint16_t k),
       setBrightness(uint8_t b),
       setRange(uint16_t i, uint16_t i2, uint32_t col),
       setShowCallback(show_callback cb),
@@ -660,6 +663,7 @@ class WS2812FX {
       getPaletteCount(void),
       getMaxSegments(void),
       getActiveSegmentsNum(void),
+      getFirstSelectedSegId(void),
       getMainSegmentId(void),
       getLastActiveSegmentId(void),
       getTargetFps(void),
@@ -689,11 +693,11 @@ class WS2812FX {
       currentColor(uint32_t colorNew, uint8_t tNr),
       gamma32(uint32_t),
       getLastShow(void),
-      getPixelColor(uint16_t),
-      getColor(void);
+      getPixelColor(uint16_t);
 
     WS2812FX::Segment
       &getSegment(uint8_t n),
+      &getFirstSelectedSeg(void),
       &getMainSegment(void);
 
     WS2812FX::Segment*
@@ -885,14 +889,15 @@ class WS2812FX {
 
     uint32_t _colors_t[3];
     uint8_t _bri_t;
+    bool _no_rgb = false;
     
     uint8_t _segment_index = 0;
     uint8_t _segment_index_palette_last = 99;
     uint8_t _mainSegment;
 
     segment _segments[MAX_NUM_SEGMENTS] = { // SRAM footprint: 24 bytes per element
-      // start, stop, offset, speed, intensity, palette, mode, options, grouping, spacing, opacity (unused), color[]
-      {0, 7, 0, DEFAULT_SPEED, 128, 0, DEFAULT_MODE, NO_OPTIONS, 1, 0, 255, {DEFAULT_COLOR}}
+      // start, stop, offset, speed, intensity, palette, mode, options, grouping, spacing, opacity (unused), color[], capabilities
+      {0, 7, 0, DEFAULT_SPEED, 128, 0, DEFAULT_MODE, NO_OPTIONS, 1, 0, 255, {DEFAULT_COLOR}, 0}
     };
     segment_runtime _segment_runtimes[MAX_NUM_SEGMENTS]; // SRAM footprint: 28 bytes per element
     friend class Segment_runtime;

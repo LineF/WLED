@@ -145,6 +145,7 @@ void handleSettingsSet(AsyncWebServerRequest *request, byte subPage)
       irPin = -1;
     }
     irEnabled = request->arg(F("IT")).toInt();
+    irApplyToAllSelected = !request->hasArg(F("MSO"));
 
     int hw_rly_pin = request->arg(F("RL")).toInt();
     if (pinManager.allocatePin(hw_rly_pin,true, PinOwner::Relay)) {
@@ -321,10 +322,7 @@ void handleSettingsSet(AsyncWebServerRequest *request, byte subPage)
     // force a sunrise/sunset re-calculation
     calculateSunriseAndSunset(); 
 
-    if (request->hasArg(F("OL"))) {
-      overlayDefault = request->arg(F("OL")).toInt();
-      overlayCurrent = overlayDefault;
-    }
+    overlayCurrent = request->hasArg(F("OL")) ? 1 : 0;
 
     overlayMin = request->arg(F("O1")).toInt();
     overlayMax = request->arg(F("O2")).toInt();
@@ -332,10 +330,6 @@ void handleSettingsSet(AsyncWebServerRequest *request, byte subPage)
     analogClock5MinuteMarks = request->hasArg(F("O5"));
     analogClockSecondsTrail = request->hasArg(F("OS"));
 
-    #ifndef WLED_DISABLE_CRONIXIE
-    strlcpy(cronixieDisplay,request->arg(F("CX")).c_str(),7);
-    cronixieBacklight = request->hasArg(F("CB"));
-    #endif
     countdownMode = request->hasArg(F("CE"));
     countdownYear = request->arg(F("CY")).toInt();
     countdownMonth = request->arg(F("CI")).toInt();
@@ -551,6 +545,8 @@ void parseNumber(const char* str, byte* val, byte minv, byte maxv)
 {
   if (str == nullptr || str[0] == '\0') return;
   if (str[0] == 'r') {*val = random8(minv,maxv); return;}
+  bool wrap = false;
+  if (str[0] == 'w' && strlen(str) > 1) {str++; wrap = true;}
   if (str[0] == '~') {
     int out = atoi(str +1);
     if (out == 0)
@@ -563,9 +559,13 @@ void parseNumber(const char* str, byte* val, byte minv, byte maxv)
         *val = (int)(*val +1) > (int)maxv ? minv : max((int)minv,(*val +1)); //+1, wrap around
       }
     } else {
-      out += *val;
-      if (out > maxv) out = maxv;
-      if (out < minv) out = minv;
+      if (wrap && *val == maxv && out > 0) out = minv;
+      else if (wrap && *val == minv && out < 0) out = maxv;
+      else { 
+        out += *val;
+        if (out > maxv) out = maxv;
+        if (out < minv) out = minv;
+      }
       *val = out;
     }
   } else
@@ -604,13 +604,12 @@ bool handleSet(AsyncWebServerRequest *request, const String& req, bool apply)
   DEBUG_PRINTLN(req);
 
   //segment select (sets main segment)
-  byte prevMain = strip.getMainSegmentId();
   pos = req.indexOf(F("SM="));
   if (pos > 0) {
     strip.setMainSegmentId(getNumVal(&req, pos));
   }
-  byte selectedSeg = strip.getMainSegmentId();
-  if (selectedSeg != prevMain) setValuesFromMainSeg();
+
+  byte selectedSeg = strip.getFirstSelectedSegId();
 
   bool singleSegment = false;
 
@@ -631,7 +630,7 @@ bool handleSet(AsyncWebServerRequest *request, const String& req, bool apply)
     selseg.setOption(SEG_OPTION_SELECTED, t);
   }
 
-  // temporary values, write directly to segments, globals are updated by setValuesFromMainSeg()
+  // temporary values, write directly to segments, globals are updated by setValuesFromFirstSelectedSeg()
   uint32_t col0 = selseg.colors[0];
   uint32_t col1 = selseg.colors[1];
   byte colIn[4]    = {R(col0), G(col0), B(col0), W(col0)};
@@ -796,7 +795,7 @@ bool handleSet(AsyncWebServerRequest *request, const String& req, bool apply)
   if (pos > 0) {
     byte temp;
     for (uint8_t i=0; i<4; i++) {
-      temp      = colIn[i];
+      temp        = colIn[i];
       colIn[i]    = colInSec[i];
       colInSec[i] = temp;
     }
@@ -830,13 +829,14 @@ bool handleSet(AsyncWebServerRequest *request, const String& req, bool apply)
   
   stateChanged |= (fxModeChanged || speedChanged || intensityChanged || paletteChanged);
 
+  // apply to main and all selected segments to prevent #1618.
   for (uint8_t i = 0; i < strip.getMaxSegments(); i++) {
     WS2812FX::Segment& seg = strip.getSegment(i);
-    if (i != selectedSeg && (singleSegment || !seg.isActive() || !seg.isSelected())) continue;
+    if (i != selectedSeg && (singleSegment || !seg.isActive() || !seg.isSelected())) continue; // skip non main segments if not applying to all
     if (fxModeChanged)    strip.setMode(i, effectIn);
-    if (speedChanged)     seg.speed = speedIn;
+    if (speedChanged)     seg.speed     = speedIn;
     if (intensityChanged) seg.intensity = intensityIn;
-    if (paletteChanged)   seg.palette = paletteIn;
+    if (paletteChanged)   seg.palette   = paletteIn;
   }
 
   //set advanced overlay
@@ -937,24 +937,9 @@ bool handleSet(AsyncWebServerRequest *request, const String& req, bool apply)
   pos = req.indexOf(F("RB"));
   if (pos > 0) doReboot = true;
 
-  //cronixie
-  #ifndef WLED_DISABLE_CRONIXIE
-  //mode, 1 countdown
+  // clock mode, 0: normal, 1: countdown
   pos = req.indexOf(F("NM="));
   if (pos > 0) countdownMode = (req.charAt(pos+3) != '0');
-  
-  pos = req.indexOf(F("NX=")); //sets digits to code
-  if (pos > 0) {
-    strlcpy(cronixieDisplay, req.substring(pos + 3, pos + 9).c_str(), 7);
-    setCronixie();
-  }
-
-  pos = req.indexOf(F("NB="));
-  if (pos > 0) //sets backlight
-  {
-    cronixieBacklight = (req.charAt(pos+3) != '0');
-  }
-  #endif
 
   pos = req.indexOf(F("U0=")); //user var 0
   if (pos > 0) {
@@ -969,13 +954,13 @@ bool handleSet(AsyncWebServerRequest *request, const String& req, bool apply)
 
   // global col[], effectCurrent, ... are updated in stateChanged()
   if (!apply) return true; // when called by JSON API, do not call colorUpdated() here
-  
-  //internal call, does not send XML response
-  pos = req.indexOf(F("IN"));
-  if (pos < 1) XML_response(request);
 
   pos = req.indexOf(F("&NN")); //do not send UDP notifications this time
   stateUpdated((pos > 0) ? CALL_MODE_NO_NOTIFY : CALL_MODE_DIRECT_CHANGE);
+
+  // internal call, does not send XML response
+  pos = req.indexOf(F("IN"));
+  if (pos < 1) XML_response(request);
 
   return true;
 }

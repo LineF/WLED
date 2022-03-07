@@ -135,7 +135,7 @@ void deserializeSegment(JsonObject elem, byte it, byte presetId)
         byte sz = colX.size();
         if (sz == 0) continue; //do nothing on empty array
 
-        byte cp = copyArray(colX, rgbw, 4);
+        copyArray(colX, rgbw, 4);
         colValid = true;
       }
 
@@ -200,7 +200,7 @@ void deserializeSegment(JsonObject elem, byte it, byte presetId)
         JsonArray icol = iarr[i];
         if (!icol.isNull()) { //array, e.g. [255,0,0]
           byte sz = icol.size();
-          if (sz > 0 || sz < 5) copyArray(icol, rgbw);
+          if (sz > 0 && sz < 5) copyArray(icol, rgbw);
         } else { //hex string, e.g. "FF0000"
           byte brgbw[] = {0,0,0,0};
           const char* hexCol = iarr[i];
@@ -226,8 +226,10 @@ void deserializeSegment(JsonObject elem, byte it, byte presetId)
   } else if (!elem["frz"] && iarr.isNull()) { //return to regular effect
     seg.setOption(SEG_OPTION_FREEZE, false);
   }
-  //send UDP if not in preset and something changed that is not just selection
-  if (!presetId && (seg.differs(prev) & 0x7F)) stateChanged = true;
+  // send UDP if not in preset and something changed that is not just selection
+  //if (!presetId && (seg.differs(prev) & 0x7F)) stateChanged = true;
+  // send UDP if something changed that is not just selection
+  if (seg.differs(prev) & 0x7F) stateChanged = true;
   return;
 }
 
@@ -327,15 +329,6 @@ bool deserializeState(JsonObject root, byte callMode, byte presetId)
       it++;
     }
   }
-
-  //refresh main segment (ensure it is selected, if there are any selected segments)
-  strip.setMainSegmentId(strip.getMainSegmentId());
-
-  #ifndef WLED_DISABLE_CRONIXIE
-    if (root["nx"].is<const char*>()) {
-      strncpy(cronixieDisplay, root["nx"], 6);
-    }
-  #endif
 
   usermods.readFromJsonState(root);
 
@@ -620,7 +613,7 @@ void serializeInfo(JsonObject root)
   #ifndef WLED_DISABLE_BLYNK
   os += 0x20;
   #endif
-  #ifndef WLED_DISABLE_CRONIXIE
+  #ifdef USERMOD_CRONIXIE
   os += 0x10;
   #endif
   #ifndef WLED_DISABLE_FILESYSTEM
